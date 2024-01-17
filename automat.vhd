@@ -15,6 +15,8 @@ entity AutomatVanzare is
          out_prod : out STD_LOGIC; -- Eliberare produs
          out_prod2 : out STD_LOGIC; -- Eliberare al doilea produs
          out_change : out STD_LOGIC; -- Eliberare rest
+         out_change_1 : out STD_LOGIC; -- Eliberare rest de 1 leu
+         out_change_5 : out STD_LOGIC; -- Eliberare rest de 5 lei
          max_amount_reached : out STD_LOGIC); -- Semnal pentru suma maxim? acumulat? atins?
 end AutomatVanzare;
 
@@ -22,9 +24,10 @@ architecture Behavioral of AutomatVanzare is
   type State is (Idle, Accumulate, Dispense, Dispense2, Change);
   shared variable accumulated_amount : integer := 0;
   signal current_state, next_state : State := Idle;
-  shared variable cash_inside : integer := 0;
-  shared variable dispended2 : boolean := false;
-  shared variable dispended1 : boolean := false; 
+  shared variable cash_inside, next_cash_inside : integer := 0;
+  shared variable dispended2, next_dispended2 : boolean := false;
+  shared variable dispended1, next_dispended1 : boolean := false; 
+  shared variable changed : boolean := false;
  
 
 begin
@@ -37,6 +40,9 @@ begin
       dispended2 := false;
     elsif rising_edge(clk) then
       current_state <= next_state;
+      cash_inside := next_cash_inside;
+      dispended2 := next_dispended2;
+      dispended1 := next_dispended1;
     end if;
   end process;
 
@@ -44,33 +50,38 @@ begin
   begin
     case current_state is
       when Idle =>
-        if req_prod = '1' then
-          next_state <= Accumulate;
-        elsif req_change = '1' then
+        next_state <= Accumulate;
+        if (req_prod = '1' and dispended1 = false) or (req_prod2 = '1' and dispended2 = false) then
+                next_state <= Accumulate;
+        elsif req_change = '1' and changed = false and accumulated_amount > 0 then
           next_state <= Change;
-        else
-          next_state <= Idle;
         end if;
         out_change <= '0';
         out_prod <= '0';
         out_prod2 <= '0';
-
-
+        out_change_1 <= '0';
+        out_change_5 <= '0';
+        if in_1 = '0' and in_5 = '0' and in_10 = '0' then
+            dispended1 := false;
+            dispended2 := false;
+            next_dispended2 := false;
+            next_dispended1 := false;
+        end if;
       when Accumulate =>
-        if req_prod = '1' and accumulated_amount >= 3 then
+        if req_prod = '1' and accumulated_amount >= 3 and dispended1 = false then
           next_state <= Dispense;
-        elsif req_change = '1' and accumulated_amount > 10 then
+        elsif req_change = '1' and changed = false and accumulated_amount > 0 then
           next_state <= Change;
         else
-          next_state <= Accumulate;
+          next_state <= Idle;
         end if;
 
       when Dispense =>
         if req_prod = '1' and dispended1 = false then
           out_prod <= '1';
           accumulated_amount := accumulated_amount - 3;
-          cash_inside := cash_inside + 3;
-          dispended1 := true;
+          next_cash_inside := cash_inside + 3;
+          next_dispended1 := true;
         else
           out_prod <= '0';
         end if;
@@ -80,47 +91,32 @@ begin
         if req_prod2 = '1' and accumulated_amount >= 3 and dispended2 = false then
         out_prod2 <= '1';
         accumulated_amount := accumulated_amount - 3;
-        cash_inside := cash_inside + 3;
-        dispended2 := true;
+        next_cash_inside := cash_inside + 3;
+        next_dispended2 := true;
         end if;
         next_state <= Change;
 
       when Change =>
         if req_change = '1' and accumulated_amount >= 10 and req_prod = '0' then
             accumulated_amount := accumulated_amount - 1;
+            next_cash_inside := cash_inside + 1;
         end if;
         if req_change = '1' then
           if accumulated_amount >= 5 then
             out_change <= '1';
             accumulated_amount := accumulated_amount - 5;
-          end if;
-          if accumulated_amount >= 5 then
-            out_change <= '1';
-            accumulated_amount := accumulated_amount - 5;
+            out_change_5 <= '1';
+            changed := true;
           end if;
     
-          if accumulated_amount >= 1 then
+          if accumulated_amount >= 1 and changed = false then
             out_change <= '1';
             accumulated_amount := accumulated_amount - 1;
-          end if;
-          if accumulated_amount >= 1 then
-            out_change <= '1';
-            accumulated_amount := accumulated_amount - 1;
-          end if;
-          if accumulated_amount >= 1 then
-            out_change <= '1';
-            accumulated_amount := accumulated_amount - 1;
-          end if;
-          if accumulated_amount >= 1 then
-            out_change <= '1';
-            accumulated_amount := accumulated_amount - 1;
+            out_change_1 <= '1';
           end if;
         end if;
-        if accumulated_amount >= 1 then
-            next_state <= Change;
-        else
             next_state <= Idle;
-        end if;
+        changed := false;
 
       when others =>
       next_state <= Idle;
@@ -129,13 +125,13 @@ begin
 
   process(in_1, in_5, in_10, req_prod, req_change)
   begin
-    if in_1 = '1' and accumulated_amount <= 15  then
+    if in_1 = '1' and accumulated_amount + 1 <= 15  then
       accumulated_amount := accumulated_amount + 1;
      end if;
-    if in_5 = '1' and accumulated_amount <= 15 then
+    if in_5 = '1' and accumulated_amount + 5 <= 15 then
       accumulated_amount := accumulated_amount + 5;
     end if;
-    if in_10 = '1' and accumulated_amount <= 15 then
+    if in_10 = '1' and accumulated_amount + 10 <= 15 then
       accumulated_amount := accumulated_amount + 10;
     end if;
 
