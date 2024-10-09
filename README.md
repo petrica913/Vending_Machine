@@ -1,5 +1,5 @@
 
-## Proiectul a fost realizat de Petrica Gheorghe-Vladimir si Stan Razvan de la 323CA
+## Proiectul a fost realizat de Petrica Gheorghe-Vladimir de la 323CA
 
 ## Tema PCL4_HARD
 
